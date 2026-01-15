@@ -36,6 +36,7 @@
 #include "command_handler.h"
 #include "button.h"
 #include "lcd_display.h"
+#include "buzzer.h"
 
 // State tracking
 bool isRunning = false;
@@ -52,17 +53,21 @@ void setup() {
     ultrasonics.init();
     obstacleAvoid.init();
     buttons.init();
+    buzzer.init();
     lcdDisplay.init();
     
     Serial.println("=============================");
-    Serial.println("  AgriBot ESP32 v2.4.0");
-    Serial.println("  Dual Motor + Smooth Drive");
+    Serial.println("  AgriBot ESP32 v2.5.0");
+    Serial.println("  Full Features + Buzzer");
     Serial.println("=============================");
     Serial.println("Features:");
     Serial.println("  - Dual Motor (L+R)");
-    Serial.println("  - Smooth Acceleration");
-    Serial.println("  - Trim Calibration");
+    Serial.println("  - 3x Ultrasonic (F/L/R)");
+    Serial.println("  - Buzzer");
     Serial.println("Ready to receive commands...");
+    
+    // Play startup sound
+    buzzer.playStartup();
 }
 
 // ==================== MAIN LOOP ====================

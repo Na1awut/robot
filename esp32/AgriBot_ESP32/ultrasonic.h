@@ -18,10 +18,9 @@
 #define PIN_US_FRONT_TRIG   12
 #define PIN_US_FRONT_ECHO   5
 
-// Left Sensor - ปิดใช้งาน (GPIO 16 ถูกใช้กับ Motor Right)
-// #define PIN_US_LEFT_TRIG    2
-// #define PIN_US_LEFT_ECHO    16
-#define US_LEFT_DISABLED    1   // Flag บอกว่าปิด Left sensor
+// Left Sensor - เปิดใช้งานอีกครั้ง (ใช้ GPIO ที่ว่างจาก Motor PWM)
+#define PIN_US_LEFT_TRIG    25    // เดิมใช้กับ Motor L ENA
+#define PIN_US_LEFT_ECHO    23    // เดิมใช้กับ Motor R ENB
 
 // Right Sensor
 #define PIN_US_RIGHT_TRIG   18

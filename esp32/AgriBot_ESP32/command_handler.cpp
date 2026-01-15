@@ -9,6 +9,7 @@
 
 #include "command_handler.h"
 #include "encoder.h"
+#include "buzzer.h"
 
 // Global instance
 CommandHandler cmdHandler;
@@ -229,6 +230,37 @@ void CommandHandler::processCommand(String command) {
     }
     else if (command == "PING") {
         Serial.println("PONG");
+    }
+    
+    // ==================== BUZZER COMMANDS ====================
+    else if (command == "BEEP") {
+        buzzer.beep();
+        sendDone();
+    }
+    else if (command.startsWith("BEEP:")) {
+        int times = parseInt(command);
+        buzzer.beepTimes(times);
+        sendDone();
+    }
+    else if (command == "BUZZER_ON") {
+        buzzer.on();
+        sendDone();
+    }
+    else if (command == "BUZZER_OFF") {
+        buzzer.off();
+        sendDone();
+    }
+    else if (command == "BUZZER_SUCCESS") {
+        buzzer.playSuccess();
+        sendDone();
+    }
+    else if (command == "BUZZER_ERROR") {
+        buzzer.playError();
+        sendDone();
+    }
+    else if (command == "BUZZER_WARNING") {
+        buzzer.playWarning();
+        sendDone();
     }
     else {
         sendError("Unknown command: " + command);

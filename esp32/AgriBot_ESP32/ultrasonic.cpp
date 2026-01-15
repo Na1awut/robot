@@ -2,7 +2,7 @@
  * ultrasonic.cpp
  * ควบคุม Ultrasonic Sensors สำหรับหลบหลีกสิ่งกีดขวาง
  * 
- * NOTE: Left sensor ปิดใช้งาน (GPIO 16 ถูกใช้กับ Motor Right)
+ * 3 Sensors: Front, Left, Right
  */
 
 #include "ultrasonic.h"
@@ -15,9 +15,9 @@ void UltrasonicSensors::init() {
     pinMode(PIN_US_FRONT_TRIG, OUTPUT);
     pinMode(PIN_US_FRONT_ECHO, INPUT);
     
-    // Left sensor - ปิดใช้งาน (GPIO ถูกใช้กับ Motor)
-    // pinMode(PIN_US_LEFT_TRIG, OUTPUT);
-    // pinMode(PIN_US_LEFT_ECHO, INPUT);
+    // Left sensor
+    pinMode(PIN_US_LEFT_TRIG, OUTPUT);
+    pinMode(PIN_US_LEFT_ECHO, INPUT);
     
     // Right sensor
     pinMode(PIN_US_RIGHT_TRIG, OUTPUT);
@@ -25,12 +25,14 @@ void UltrasonicSensors::init() {
     
     // Initialize cache
     lastFront = 999;
-    lastLeft = 999;  // Always 999 (disabled)
+    lastLeft = 999;
     lastRight = 999;
     lastMeasureTime = 0;
     
-    Serial.println("[Ultrasonic] 2 sensors initialized (Front/Right)");
-    Serial.println("   Left sensor DISABLED (GPIO used by Motor)");
+    Serial.println("[Ultrasonic] 3 sensors initialized (Front/Left/Right)");
+    Serial.println("   Front: TRIG=" + String(PIN_US_FRONT_TRIG) + ", ECHO=" + String(PIN_US_FRONT_ECHO));
+    Serial.println("   Left:  TRIG=" + String(PIN_US_LEFT_TRIG) + ", ECHO=" + String(PIN_US_LEFT_ECHO));
+    Serial.println("   Right: TRIG=" + String(PIN_US_RIGHT_TRIG) + ", ECHO=" + String(PIN_US_RIGHT_ECHO));
 }
 
 float UltrasonicSensors::measureDistance(int trigPin, int echoPin) {
@@ -68,8 +70,7 @@ float UltrasonicSensors::getFrontDistance() {
 }
 
 float UltrasonicSensors::getLeftDistance() {
-    // Left sensor disabled - always return 999 (no obstacle)
-    lastLeft = 999;
+    lastLeft = measureDistance(PIN_US_LEFT_TRIG, PIN_US_LEFT_ECHO);
     return lastLeft;
 }
 
@@ -83,8 +84,7 @@ bool UltrasonicSensors::hasObstacleFront() {
 }
 
 bool UltrasonicSensors::hasObstacleLeft() {
-    // Left sensor disabled - always return false
-    return false;
+    return getLeftDistance() < OBSTACLE_THRESHOLD_CM;
 }
 
 bool UltrasonicSensors::hasObstacleRight() {
@@ -93,12 +93,15 @@ bool UltrasonicSensors::hasObstacleRight() {
 
 ObstacleDirection UltrasonicSensors::checkObstacles() {
     bool front = hasObstacleFront();
-    // Left sensor disabled
+    bool left = hasObstacleLeft();
     bool right = hasObstacleRight();
     
-    // Simplified logic (without left sensor)
+    // Full logic with all 3 sensors
+    if (front && left && right) return OBSTACLE_ALL;
+    if (front && left) return OBSTACLE_FRONT_LEFT;
     if (front && right) return OBSTACLE_FRONT_RIGHT;
     if (front) return OBSTACLE_FRONT;
+    if (left) return OBSTACLE_LEFT;
     if (right) return OBSTACLE_RIGHT;
     
     return NO_OBSTACLE;
@@ -109,7 +112,7 @@ void UltrasonicSensors::sendDistancesToSerial() {
     Serial.print("DIST:");
     Serial.print(lastFront, 1);
     Serial.print(",");
-    Serial.print("-");  // Left disabled
+    Serial.print(lastLeft, 1);
     Serial.print(",");
     Serial.println(lastRight, 1);
 }
