@@ -2,6 +2,9 @@
  * dual_motor.h
  * ควบคุม 2 Motor แบบ Differential Drive
  * 
+ * สำหรับ Motor Driver แบบ 4 ขา (IN1-IN4)
+ * ใช้ PWM โดยตรงผ่าน IN1-IN4 (ไม่มี ENA/ENB)
+ * 
  * Features:
  * - Motor ซ้าย + ขวา แยกกัน
  * - Smooth Acceleration (ไม่กระตุก)
@@ -15,22 +18,19 @@
 #include <Arduino.h>
 
 // ==================== PIN CONFIGURATION ====================
-// L298N Motor Driver Layout:
-//   IN1, IN2 = ล้อซ้าย | IN3, IN4 = ล้อขวา
-//   ENA = PWM ซ้าย    | ENB = PWM ขวา
+// Motor Driver แบบ 4 ขา (ไม่มี ENA/ENB)
+// ใช้ PWM โดยตรงผ่าน IN1-IN4
 
-// Motor Left (ล้อซ้าย) - ใช้ IN1, IN2, ENA
-#define PIN_MOTOR_L_IN1   32    // IN1
-#define PIN_MOTOR_L_IN2   33    // IN2
-#define PIN_MOTOR_L_PWM   25    // ENA
+// Motor Left (ล้อซ้าย)
+#define PIN_MOTOR_L_IN1   32    // PWM Forward
+#define PIN_MOTOR_L_IN2   33    // PWM Backward
 
-// Motor Right (ล้อขวา) - ใช้ IN3, IN4, ENB
-#define PIN_MOTOR_R_IN1   17    // IN3
-#define PIN_MOTOR_R_IN2   16    // IN4 (GPIO 16 - ย้ายจาก ultrasonic left)
-#define PIN_MOTOR_R_PWM   23    // ENB
+// Motor Right (ล้อขวา)
+#define PIN_MOTOR_R_IN1   17    // PWM Forward
+#define PIN_MOTOR_R_IN2   16    // PWM Backward
 
 // ==================== SETTINGS ====================
-#define MOTOR_DEFAULT_SPEED   150     // ความเร็วปกติ (0-255)
+#define MOTOR_DEFAULT_SPEED   200     // ความเร็วปกติ (0-255)
 #define MOTOR_MIN_SPEED       50      // ความเร็วต่ำสุดที่ motor หมุนได้
 #define MOTOR_ACCEL_STEP      5       // เพิ่ม/ลดความเร็วทีละกี่
 #define MOTOR_ACCEL_DELAY     20      // หน่วง ms ระหว่าง step

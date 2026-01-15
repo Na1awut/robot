@@ -1,7 +1,9 @@
 /**
  * dual_motor.cpp
  * ควบคุม 2 Motor แบบ Differential Drive
- * พร้อม Smooth Acceleration
+ * 
+ * สำหรับ Motor Driver แบบ 4 ขา (IN1-IN4)
+ * ใช้ PWM โดยตรงผ่าน IN1-IN4 (ไม่มี ENA/ENB)
  */
 
 #include "dual_motor.h"
@@ -14,15 +16,13 @@ DualMotorController dualMotor;
 #define EEPROM_TRIM_ADDR 100
 
 void DualMotorController::init() {
-    // Setup pins - Motor Left
+    // Setup pins - Motor Left (ใช้ PWM โดยตรง)
     pinMode(PIN_MOTOR_L_IN1, OUTPUT);
     pinMode(PIN_MOTOR_L_IN2, OUTPUT);
-    pinMode(PIN_MOTOR_L_PWM, OUTPUT);
     
-    // Setup pins - Motor Right
+    // Setup pins - Motor Right (ใช้ PWM โดยตรง)
     pinMode(PIN_MOTOR_R_IN1, OUTPUT);
     pinMode(PIN_MOTOR_R_IN2, OUTPUT);
-    pinMode(PIN_MOTOR_R_PWM, OUTPUT);
     
     // Stop motors
     stop();
@@ -30,11 +30,11 @@ void DualMotorController::init() {
     // Load trim from EEPROM
     loadTrim();
     
-    Serial.println("✅ Dual Motor initialized");
-    Serial.println("   Left:  GPIO " + String(PIN_MOTOR_L_IN1) + "," + 
-                   String(PIN_MOTOR_L_IN2) + "," + String(PIN_MOTOR_L_PWM));
-    Serial.println("   Right: GPIO " + String(PIN_MOTOR_R_IN1) + "," + 
-                   String(PIN_MOTOR_R_IN2) + "," + String(PIN_MOTOR_R_PWM));
+    Serial.println("✅ Dual Motor initialized (4-pin driver)");
+    Serial.println("   Left:  IN1=GPIO" + String(PIN_MOTOR_L_IN1) + 
+                   ", IN2=GPIO" + String(PIN_MOTOR_L_IN2));
+    Serial.println("   Right: IN1=GPIO" + String(PIN_MOTOR_R_IN1) + 
+                   ", IN2=GPIO" + String(PIN_MOTOR_R_IN2));
     Serial.println("   Trim:  " + String(trimOffset));
 }
 
@@ -62,13 +62,11 @@ void DualMotorController::emergencyStop() {
     currentSpeedL = 0;
     currentSpeedR = 0;
     
-    // หยุดทันที
-    digitalWrite(PIN_MOTOR_L_IN1, LOW);
-    digitalWrite(PIN_MOTOR_L_IN2, LOW);
-    digitalWrite(PIN_MOTOR_R_IN1, LOW);
-    digitalWrite(PIN_MOTOR_R_IN2, LOW);
-    analogWrite(PIN_MOTOR_L_PWM, 0);
-    analogWrite(PIN_MOTOR_R_PWM, 0);
+    // หยุดทันที - ทุก pin เป็น LOW
+    analogWrite(PIN_MOTOR_L_IN1, 0);
+    analogWrite(PIN_MOTOR_L_IN2, 0);
+    analogWrite(PIN_MOTOR_R_IN1, 0);
+    analogWrite(PIN_MOTOR_R_IN2, 0);
     
     Serial.println("🛑 Emergency Stop!");
 }
@@ -140,23 +138,26 @@ void DualMotorController::loadTrim() {
 }
 
 // ==================== MOTOR CONTROL (Internal) ====================
+// สำหรับ 4-pin driver: ใช้ PWM โดยตรงผ่าน IN1/IN2
+// IN1 = PWM สำหรับหน้า, IN2 = PWM สำหรับถอย
 
 void DualMotorController::setMotorL(int speed) {
     int absSpeed = abs(speed);
     absSpeed = constrain(absSpeed, 0, 255);
     
     if (speed > 0) {
-        digitalWrite(PIN_MOTOR_L_IN1, HIGH);
-        digitalWrite(PIN_MOTOR_L_IN2, LOW);
+        // หน้า: IN1 = PWM, IN2 = 0
+        analogWrite(PIN_MOTOR_L_IN1, absSpeed);
+        analogWrite(PIN_MOTOR_L_IN2, 0);
     } else if (speed < 0) {
-        digitalWrite(PIN_MOTOR_L_IN1, LOW);
-        digitalWrite(PIN_MOTOR_L_IN2, HIGH);
+        // ถอย: IN1 = 0, IN2 = PWM
+        analogWrite(PIN_MOTOR_L_IN1, 0);
+        analogWrite(PIN_MOTOR_L_IN2, absSpeed);
     } else {
-        digitalWrite(PIN_MOTOR_L_IN1, LOW);
-        digitalWrite(PIN_MOTOR_L_IN2, LOW);
+        // หยุด: ทั้งคู่ = 0
+        analogWrite(PIN_MOTOR_L_IN1, 0);
+        analogWrite(PIN_MOTOR_L_IN2, 0);
     }
-    
-    analogWrite(PIN_MOTOR_L_PWM, absSpeed);
 }
 
 void DualMotorController::setMotorR(int speed) {
@@ -164,17 +165,18 @@ void DualMotorController::setMotorR(int speed) {
     absSpeed = constrain(absSpeed, 0, 255);
     
     if (speed > 0) {
-        digitalWrite(PIN_MOTOR_R_IN1, HIGH);
-        digitalWrite(PIN_MOTOR_R_IN2, LOW);
+        // หน้า: IN1 = PWM, IN2 = 0
+        analogWrite(PIN_MOTOR_R_IN1, absSpeed);
+        analogWrite(PIN_MOTOR_R_IN2, 0);
     } else if (speed < 0) {
-        digitalWrite(PIN_MOTOR_R_IN1, LOW);
-        digitalWrite(PIN_MOTOR_R_IN2, HIGH);
+        // ถอย: IN1 = 0, IN2 = PWM
+        analogWrite(PIN_MOTOR_R_IN1, 0);
+        analogWrite(PIN_MOTOR_R_IN2, absSpeed);
     } else {
-        digitalWrite(PIN_MOTOR_R_IN1, LOW);
-        digitalWrite(PIN_MOTOR_R_IN2, LOW);
+        // หยุด: ทั้งคู่ = 0
+        analogWrite(PIN_MOTOR_R_IN1, 0);
+        analogWrite(PIN_MOTOR_R_IN2, 0);
     }
-    
-    analogWrite(PIN_MOTOR_R_PWM, absSpeed);
 }
 
 void DualMotorController::applySpeed() {
@@ -184,10 +186,10 @@ void DualMotorController::applySpeed() {
     
     // Apply trim
     if (trimOffset > 0) {
-        // ขวาเร็วกว่า → ลดขวา หรือ เพิ่มซ้าย
+        // ขวาเร็วกว่า → ลดขวา
         speedR = speedR - trimOffset;
     } else if (trimOffset < 0) {
-        // ซ้ายเร็วกว่า → ลดซ้าย หรือ เพิ่มขวา
+        // ซ้ายเร็วกว่า → ลดซ้าย
         speedL = speedL + trimOffset;  // trimOffset เป็นลบ
     }
     
