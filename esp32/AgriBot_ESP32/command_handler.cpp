@@ -110,13 +110,27 @@ void CommandHandler::processCommand(String command) {
         sendDone();
     }
     
-    // ==================== SERVO Y COMMANDS ====================
+    // ==================== MOTOR Y COMMANDS ====================
     else if (command == "ACT:Y_DOWN") {
-        servoY.down();
+        motorY.down();
         sendDone();
     }
     else if (command == "ACT:Y_UP") {
-        servoY.up();
+        motorY.up();
+        sendDone();
+    }
+    else if (command.startsWith("Y_DOWN:")) {
+        float seconds = parseTime(command);
+        motorY.downFor(seconds);
+        sendDone();
+    }
+    else if (command.startsWith("Y_UP:")) {
+        float seconds = parseTime(command);
+        motorY.upFor(seconds);
+        sendDone();
+    }
+    else if (command == "Y_STOP") {
+        motorY.stop();
         sendDone();
     }
     
@@ -269,8 +283,8 @@ void CommandHandler::processCommand(String command) {
 
 void CommandHandler::stopAll() {
     motorZ.stop();
+    motorY.stop();
     dualMotor.emergencyStop();
-    servoY.up();
     pump.off();
     obstacleAvoid.disable();
 }

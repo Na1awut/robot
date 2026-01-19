@@ -6,8 +6,8 @@
  * 
  * Features:
  * - Motor Z: ยืด/หด แขนกล (รองรับ Encoder)
+ * - Motor Y: ขึ้น/ลง หัวฉีด (DC Motor)
  * - Motor Wheel: เดินหน้า/ถอยหลัง
- * - Servo Y: ยก/วาง หัวฉีด
  * - Pump: พ่นยา
  * - Ultrasonic: ตรวจจับสิ่งกีดขวาง (หน้า/ซ้าย/ขวา)
  * - Obstacle Avoidance: หลบหลีกอัตโนมัติ
@@ -22,14 +22,14 @@
  * 4. Upload
  * 
  * @author AgriBot Team
- * @version 2.3.0 (With Button + LCD)
+ * @version 2.6.0 (Motor Y instead of Servo)
  */
 
 #include "config.h"
 #include "encoder.h"
 #include "motor_z.h"
+#include "motor_y.h"
 #include "dual_motor.h"
-#include "servo_y.h"
 #include "pump.h"
 #include "ultrasonic.h"
 #include "obstacle_avoidance.h"
@@ -48,7 +48,7 @@ void setup() {
     encoderZ.init();        // Encoder ก่อน Motor Z
     motorZ.init();
     dualMotor.init();       // Dual motor (2 wheels)
-    servoY.init();
+    motorY.init();          // Motor Y (ขึ้น/ลง)
     pump.init();
     ultrasonics.init();
     obstacleAvoid.init();
@@ -57,13 +57,13 @@ void setup() {
     lcdDisplay.init();
     
     Serial.println("=============================");
-    Serial.println("  AgriBot ESP32 v2.5.0");
-    Serial.println("  Full Features + Buzzer");
+    Serial.println("  AgriBot ESP32 v2.6.0");
+    Serial.println("  Motor Y + Full Features");
     Serial.println("=============================");
     Serial.println("Features:");
     Serial.println("  - Dual Motor (L+R)");
+    Serial.println("  - Motor Y (Up/Down)");
     Serial.println("  - 3x Ultrasonic (F/L/R)");
-    Serial.println("  - Buzzer");
     Serial.println("Ready to receive commands...");
     
     // Play startup sound

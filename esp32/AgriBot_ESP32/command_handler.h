@@ -9,8 +9,8 @@
 #include <Arduino.h>
 #include "config.h"
 #include "motor_z.h"
+#include "motor_y.h"
 #include "dual_motor.h"
-#include "servo_y.h"
 #include "pump.h"
 #include "ultrasonic.h"
 #include "obstacle_avoidance.h"

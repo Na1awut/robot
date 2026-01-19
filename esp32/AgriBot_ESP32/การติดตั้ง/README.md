@@ -40,7 +40,7 @@
 | **Motor Left** | 32, 33 | IN1 (หน้า), IN2 (ถอย) |
 | **Motor Right** | 17, 16 | IN1 (หน้า), IN2 (ถอย) |
 | **Motor Z** | 26, 27 | IN1 (ยืด), IN2 (หด) |
-| **Servo Y** | 13 | Signal |
+| **Motor Y** | 13, 2 | IN1 (ขึ้น), IN2 (ลง) |
 | **Pump Relay** | 4 | Control |
 | **US Front** | 12, 5 | TRIG, ECHO |
 | **US Left** | 25, 23 | TRIG, ECHO |
@@ -98,18 +98,18 @@ Motor Driver                   ESP32
 
 ---
 
-## การต่อ Servo และ Pump
+## การต่อ Motor Y และ Pump
 
-### Servo Y (หัวฉีด ขึ้น/ลง)
+### Motor Y (หัวฉีด ขึ้น/ลง) - ใช้ DC Motor แทน Servo
 
 ```
-Servo SG90/MG996R              ESP32 / Power
+Motor Driver                   ESP32
 ═══════════════════════════════════════════════
-สายสีส้ม (Signal) ───────────── GPIO 13
-สายสีแดง (VCC)    ───────────── 5V (จาก Power Supply)
-สายสีน้ำตาล (GND) ───────────── GND
+  IN1 ───────────────────────── GPIO 13 (PWM ขึ้น)
+  IN2 ───────────────────────── GPIO 2  (PWM ลง)
+  OUT1, OUT2 ────────────────── Motor Y
 
-⚠️ หมายเหตุ: Servo กินไฟเยอะ ห้ามใช้ไฟจาก ESP32!
+⚠️ GPIO 2 มี LED onboard แต่ใช้งานได้ปกติ
 ```
 
 ### Pump Relay (ปั๊มน้ำยา)
