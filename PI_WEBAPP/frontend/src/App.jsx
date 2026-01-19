@@ -204,6 +204,40 @@ export default function App() {
               {/* State Indicator */}
               <StateIndicator state={status.state} />
 
+              {/* Robot Speech Bubble */}
+              <div className="bg-gradient-to-r from-primary-500/10 to-blue-500/10 
+                              border border-primary-500/30 rounded-2xl p-4 
+                              flex items-center gap-4 relative overflow-hidden">
+                {/* Robot Avatar */}
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-primary-600
+                                flex items-center justify-center text-3xl shadow-lg shadow-primary-500/30
+                                flex-shrink-0">
+                  {status.robot_emoji || '🤖'}
+                </div>
+
+                {/* Speech Bubble */}
+                <div className="flex-1 min-w-0">
+                  <div className="relative bg-gray-800/80 rounded-xl px-4 py-3 text-white
+                                  before:content-[''] before:absolute before:left-[-8px] before:top-1/2
+                                  before:border-8 before:border-transparent before:border-r-gray-800/80
+                                  before:-translate-y-1/2">
+                    <p className="text-base font-medium truncate">
+                      {status.robot_message || 'สวัสดีครับ! พร้อมทำงานแล้ว 🌱'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Animated Pulse when running */}
+                {isRunning && (
+                  <div className="absolute top-2 right-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary-500"></span>
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatusCard

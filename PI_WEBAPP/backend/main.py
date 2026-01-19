@@ -47,6 +47,9 @@ class RobotStatus(BaseModel):
     spray_count: int = 0
     battery: int = 100
     timestamp: str = ""
+    # Friendly message for UX
+    robot_message: str = "สวัสดีครับ! พร้อมทำงานแล้ว 🌱"
+    robot_emoji: str = "😊"
 
 class LogEntry(BaseModel):
     timestamp: str
@@ -176,6 +179,38 @@ class RealRobotController:
         self.status.timestamp = datetime.now().isoformat()
         write_json(STATUS_FILE, self.status.model_dump())
     
+    def say(self, message_type: str, custom_msg: str = None):
+        """ตั้งค่าข้อความที่หุ่นยนต์พูดแบบ friendly"""
+        messages = {
+            "ready": ("สวัสดีครับ! พร้อมทำงานแล้ว 🌱", "😊"),
+            "waiting": ("รอคำสั่งอยู่นะครับ...", "🤖"),
+            "moving": ("กำลังเดินลาดตระเวนครับ 🚶", "🔍"),
+            "searching": ("กำลังมองหาวัชพืช... 👀", "🔎"),
+            "found_weed": ("เจอวัชพืชแล้ว! 🎯", "😤"),
+            "no_weed": ("ไม่เจอวัชพืชครับ ปลอดภัย! ✨", "😌"),
+            "preparing_spray": ("กำลังเตรียมพ่นยา...", "💪"),
+            "spraying": ("กำลังพ่นยากำจัดวัชพืช 💦", "🔫"),
+            "spray_done": ("พ่นยาเสร็จแล้วครับ! ✅", "👍"),
+            "arm_extend": ("กำลังยืดแขนออก...", "🦾"),
+            "arm_retract": ("กำลังหดแขนกลับ", "🦾"),
+            "obstacle": ("เจอสิ่งกีดขวาง! กำลังหลบ... 🚧", "😰"),
+            "clear": ("ทางโล่งแล้ว ไปต่อครับ!", "😊"),
+            "stopping": ("กำลังหยุด...", "✋"),
+            "stopped": ("หยุดแล้วครับ", "🛑"),
+            "error": ("อุ๊ย! มีปัญหานิดหน่อย 😅", "❌"),
+            "mission_complete": ("เสร็จภารกิจแล้วครับ! 🎉", "🏆"),
+            "thinking": ("กำลังคิดอยู่...", "🤔"),
+            "analyzing": ("กำลังวิเคราะห์ภาพ...", "🧠"),
+        }
+        
+        if custom_msg:
+            self.status.robot_message = custom_msg
+            self.status.robot_emoji = "💬"
+        elif message_type in messages:
+            self.status.robot_message, self.status.robot_emoji = messages[message_type]
+        
+        self._save_status()
+    
     def start_mission(self) -> dict:
         """เริ่ม Mission"""
         if not self.esp32_connected or not self.camera_connected:
@@ -189,7 +224,7 @@ class RealRobotController:
         
         self.is_running = True
         self.status.state = "Moving"
-        self._save_status()
+        self.say("moving")
         
         # Log start
         append_log(LogEntry(
@@ -213,7 +248,7 @@ class RealRobotController:
         if self.brain:
             self.brain.stop_movement()
         
-        self._save_status()
+        self.say("stopped")
         
         append_log(LogEntry(
             timestamp=datetime.now().isoformat(),
@@ -227,7 +262,7 @@ class RealRobotController:
         """Reset ทุกอย่าง"""
         self.is_running = False
         self.status = RobotStatus()
-        self._save_status()
+        self.say("ready")
         
         # Clear report
         write_json(REPORT_FILE, [])
