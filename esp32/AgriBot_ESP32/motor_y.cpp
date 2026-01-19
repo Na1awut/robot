@@ -7,6 +7,7 @@
  */
 
 #include "motor_y.h"
+#include "ultrasonic.h"
 
 // Global instance
 MotorY motorY;
@@ -72,6 +73,49 @@ void MotorY::stop() {
     moving = false;
 }
 
+// ==================== HEIGHT CONTROL (US Y-axis) ====================
+
+void MotorY::moveToHeight(float targetCm) {
+    Serial.print("[Motor Y] Moving to height: ");
+    Serial.print(targetCm, 1);
+    Serial.println(" cm");
+    
+    float tolerance = 2.0;  // +/- 2cm
+    int maxAttempts = 50;   // Timeout protection
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+        float currentHeight = ultrasonics.getYDistance();
+        float diff = currentHeight - targetCm;
+        
+        Serial.print("  Current: ");
+        Serial.print(currentHeight, 1);
+        Serial.print(" cm, Diff: ");
+        Serial.println(diff, 1);
+        
+        // ถึงเป้าหมายแล้ว
+        if (abs(diff) <= tolerance) {
+            stop();
+            Serial.println("[Motor Y] Target height reached!");
+            return;
+        }
+        
+        // ต่ำกว่าเป้าหมาย → ขึ้น
+        if (diff < 0) {
+            runUp();
+        } else {
+            // สูงกว่าเป้าหมาย → ลง
+            runDown();
+        }
+        
+        delay(100);  // ให้เวลา motor ทำงาน
+        attempts++;
+    }
+    
+    stop();
+    Serial.println("[Motor Y] Timeout - target not reached");
+}
+
 // ==================== LOW-LEVEL CONTROL ====================
 
 void MotorY::runUp() {
@@ -95,3 +139,4 @@ void MotorY::setSpeed(int speed) {
     Serial.print("[Motor Y] Speed set to ");
     Serial.println(motorSpeed);
 }
+

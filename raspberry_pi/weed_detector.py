@@ -22,6 +22,68 @@ MODELS_DIR = Path(__file__).parent / "models"
 DEFAULT_MODEL_NAME = "best.pt"
 
 
+# ==================== V4L2 CAMERA DETECTION (คล้าย Cheese) ====================
+def find_usb_cameras() -> List[str]:
+    """
+    ค้นหา USB cameras ด้วย V4L2 (คล้ายแอพ Cheese)
+    
+    อ่าน /sys/class/video4linux/ เพื่อหา USB cameras จริง
+    กรอง devices ที่ไม่ใช่กล้อง เช่น decoder, ISP ออก
+    
+    Returns:
+        List[str]: รายการ device paths เช่น ['/dev/video0', '/dev/video1']
+    """
+    import os
+    cameras = []
+    
+    video4linux_path = '/sys/class/video4linux'
+    if not os.path.exists(video4linux_path):
+        return []
+    
+    for device_name in sorted(os.listdir(video4linux_path)):
+        device_path = f'/dev/{device_name}'
+        sys_path = f'{video4linux_path}/{device_name}'
+        
+        try:
+            # ตรวจสอบว่าเป็น USB device หรือไม่
+            device_link = os.path.realpath(f'{sys_path}/device')
+            is_usb = 'usb' in device_link.lower()
+            
+            # อ่านชื่อ device
+            name_file = f'{sys_path}/name'
+            cam_name = ''
+            if os.path.exists(name_file):
+                with open(name_file, 'r') as f:
+                    cam_name = f.read().strip().lower()
+            
+            # กรอง devices ที่ไม่ใช่กล้อง
+            skip_keywords = ['pispbe', 'decoder', 'encoder', 'isp', 'hevc', 'h264']
+            if any(kw in cam_name for kw in skip_keywords):
+                continue
+            
+            # ตรวจสอบว่ารองรับ video capture (index 0)
+            # video0, video2, video4... มักเป็น capture device
+            # video1, video3, video5... มักเป็น metadata
+            index_file = f'{sys_path}/index'
+            if os.path.exists(index_file):
+                with open(index_file, 'r') as f:
+                    index = int(f.read().strip())
+                if index != 0:  # ข้าม metadata devices
+                    continue
+            
+            # USB cameras ใส่ก่อน
+            if is_usb:
+                cameras.insert(0, device_path)
+            else:
+                cameras.append(device_path)
+                
+        except Exception:
+            continue
+    
+    logger.info(f"🔍 V4L2 found cameras: {cameras}")
+    return cameras
+
+
 class PlantClass(Enum):
     """ประเภทพืชที่ตรวจจับได้"""
     WEED = "weed"           # หญ้า - ต้องพ่นยา
@@ -192,14 +254,14 @@ class WeedDetector:
         return info
     
     def start_camera(self) -> bool:
-        """เปิดกล้อง - ลองหลายอุปกรณ์อัตโนมัติ"""
-        # รายการ device ที่จะลอง
-        devices_to_try = [
-            self.camera_id,           # ใช้ค่าที่กำหนดก่อน
-            '/dev/video0',
-            '/dev/video1', 
-            '/dev/video2',
-            0, 1, 2                   # Indices
+        """เปิดกล้อง - ใช้ V4L2 หา USB cameras (คล้าย Cheese)"""
+        # หา USB cameras ก่อน (วิธีเดียวกับแอพ Cheese)
+        usb_cameras = find_usb_cameras()
+        
+        # รายการ device ที่จะลอง: USB cameras ก่อน แล้ว fallback
+        devices_to_try = usb_cameras + [
+            self.camera_id,           # ค่าที่กำหนด
+            0, 1, 2                   # Fallback indices
         ]
         
         # ลบ duplicates และ None

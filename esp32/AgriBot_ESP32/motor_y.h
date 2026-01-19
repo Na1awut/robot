@@ -32,6 +32,9 @@ public:
     void downFor(float seconds);    // ลงตามเวลา
     void stop();
     
+    // === Height Control (ใช้ US Y-axis) ===
+    void moveToHeight(float targetCm);  // เลื่อนให้สูง targetCm จากพื้น
+    
     // === Speed Control ===
     void setSpeed(int speed);       // 0-255
     int getSpeed() { return motorSpeed; }

@@ -35,7 +35,6 @@ private:
     unsigned long lastCheckTime;
     
     void avoidFront();
-    void avoidLeft();
     void avoidRight();
     void emergencyStop();
 };

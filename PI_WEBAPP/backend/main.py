@@ -127,7 +127,7 @@ class RealRobotController:
         self._save_status()
     
     def initialize_devices(self) -> bool:
-        """เชื่อมต่อ ESP32 + Camera ตอน server start"""
+        """เชื่อมต่อ ESP32 + Camera ตอน server start (ทั้งสองอุปกรณ์แยกกัน)"""
         if not ROBOT_AVAILABLE:
             self.error_message = "โมดูลหุ่นยนต์ไม่พร้อมใช้งาน กรุณาตรวจสอบการติดตั้ง"
             print(f"❌ {self.error_message}")
@@ -138,19 +138,18 @@ class RealRobotController:
             self.config = CalibrationConfig.load_from_file()
             print("✅ Loaded calibration config")
             
-            # Connect ESP32
+            # Connect ESP32 (ไม่บังคับ - กล้องทำงานได้แม้ไม่มี ESP32)
             self.brain = RobotBrain(self.config)
             if self.brain.connect():
                 self.esp32_connected = True
                 print("✅ ESP32 connected")
             else:
-                self.error_message = "ESP32 ไม่พร้อมใช้งาน กรุณาตรวจสอบการเชื่อมต่อ USB"
-                print(f"❌ {self.error_message}")
-                return False
+                self.esp32_connected = False
+                print("⚠️ ESP32 ไม่พร้อมใช้งาน (กล้องยังทำงานได้)")
             
-            # Initialize detector with camera
+            # Initialize detector with camera (ทำงานแยกจาก ESP32)
             self.detector = WeedDetector(
-                camera_id=0,  # หรือจะหาอัตโนมัติ
+                camera_id=0,
                 frame_width=self.config.img_width,
                 frame_height=self.config.img_height
             )
@@ -159,15 +158,21 @@ class RealRobotController:
                 self.camera_connected = True
                 print("✅ Camera connected")
             else:
-                self.error_message = "กล้อง ไม่พร้อมใช้งาน กรุณาตรวจสอบการเชื่อมต่อ USB"
-                print(f"❌ {self.error_message}")
-                # Disconnect ESP32 if camera fails
-                if self.brain:
-                    self.brain.disconnect()
-                return False
+                self.camera_connected = False
+                print("⚠️ กล้องไม่พร้อมใช้งาน")
             
-            self.error_message = ""
-            return True
+            # สรุปสถานะ
+            if not self.esp32_connected and not self.camera_connected:
+                self.error_message = "ESP32 และกล้องไม่พร้อมใช้งาน"
+                return False
+            elif not self.esp32_connected:
+                self.error_message = "ESP32 ไม่พร้อม แต่กล้องพร้อมใช้งาน"
+            elif not self.camera_connected:
+                self.error_message = "กล้องไม่พร้อม แต่ ESP32 พร้อมใช้งาน"
+            else:
+                self.error_message = ""
+            
+            return self.esp32_connected or self.camera_connected
             
         except Exception as e:
             self.error_message = f"เกิดข้อผิดพลาด: {str(e)}"
@@ -642,7 +647,7 @@ _camera_retry_count = 0
 _last_camera_retry = 0
 
 def _try_reconnect_camera():
-    """Try to reconnect camera with different device indices"""
+    """Try to reconnect camera using V4L2 detection (คล้าย Cheese)"""
     global _camera_retry_count, _last_camera_retry
     
     # Rate limit retries (every 5 seconds)
@@ -654,8 +659,15 @@ def _try_reconnect_camera():
     
     print(f"🔄 Camera reconnect attempt #{_camera_retry_count}")
     
-    # Try different video devices
-    for device in ['/dev/video0', '/dev/video1', '/dev/video2', 0, 1, 2]:
+    # ใช้ V4L2 หา USB cameras (วิธีเดียวกับ Cheese)
+    try:
+        from weed_detector import find_usb_cameras
+        usb_cameras = find_usb_cameras()
+        devices = usb_cameras + [0, 1, 2]
+    except ImportError:
+        devices = ['/dev/video0', '/dev/video1', '/dev/video2', 0, 1, 2]
+    
+    for device in devices:
         try:
             if robot.detector and hasattr(robot.detector, 'cap'):
                 if robot.detector.cap is not None:
@@ -663,12 +675,17 @@ def _try_reconnect_camera():
                 
                 robot.detector.cap = cv2.VideoCapture(device)
                 if robot.detector.cap.isOpened():
-                    robot.detector.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    robot.detector.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    robot.camera_connected = True
-                    print(f"✅ Camera reconnected on {device}")
-                    _camera_retry_count = 0
-                    return True
+                    # ทดสอบอ่านภาพ
+                    ret, test_frame = robot.detector.cap.read()
+                    if ret and test_frame is not None:
+                        robot.detector.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        robot.detector.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        robot.camera_connected = True
+                        print(f"✅ Camera reconnected on {device}")
+                        _camera_retry_count = 0
+                        return True
+                    else:
+                        robot.detector.cap.release()
         except Exception as e:
             print(f"   Failed on {device}: {e}")
             continue

@@ -43,8 +43,8 @@
 | **Motor Y** | 13, 2 | IN1 (ขึ้น), IN2 (ลง) |
 | **Pump Relay** | 4 | Control |
 | **US Front** | 12, 5 | TRIG, ECHO |
-| **US Left** | 25, 23 | TRIG, ECHO |
 | **US Right** | 18, 19 | TRIG, ECHO |
+| **US Y-axis** | 25, 23 | TRIG, ECHO (วัดความสูงหัวพ่น) |
 | **Buzzer** | 14 | Signal |
 | **LCD I2C** | 21, 22 | SDA, SCL |
 | **Button Start** | 15 | Pull-up |
@@ -131,7 +131,34 @@ Relay Output:
 
 ## การต่อ Ultrasonic Sensors
 
-### HC-SR04 (3 ตัว: Front + Left + Right)
+### HC-SR04 (3 ตัว: Front + Right + Y-axis)
+
+```
+Ultrasonic Front               ESP32
+═══════════════════════════════════════════════
+VCC ─────────────────────────── 5V
+GND ─────────────────────────── GND
+TRIG ────────────────────────── GPIO 12
+ECHO ────────────────────────── GPIO 5
+
+
+Ultrasonic Right               ESP32
+═══════════════════════════════════════════════
+VCC ─────────────────────────── 5V
+GND ─────────────────────────── GND
+TRIG ────────────────────────── GPIO 18
+ECHO ────────────────────────── GPIO 19
+
+
+Ultrasonic Y-axis (วัดความสูงหัวพ่น)
+═══════════════════════════════════════════════
+VCC ─────────────────────────── 5V
+GND ─────────────────────────── GND
+TRIG ────────────────────────── GPIO 25
+ECHO ────────────────────────── GPIO 23
+
+📌 ติดตั้งที่หัวพ่น ชี้ลงพื้น
+```
 
 ```
 Ultrasonic Front               ESP32

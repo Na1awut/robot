@@ -1,8 +1,8 @@
 /**
  * ultrasonic.cpp
- * ควบคุม Ultrasonic Sensors สำหรับหลบหลีกสิ่งกีดขวาง
+ * ควบคุม Ultrasonic Sensors
  * 
- * 3 Sensors: Front, Left, Right
+ * 3 Sensors: Front (หลบหลีก), Right (หลบหลีก), Y-axis (วัดความสูง)
  */
 
 #include "ultrasonic.h"
@@ -15,24 +15,24 @@ void UltrasonicSensors::init() {
     pinMode(PIN_US_FRONT_TRIG, OUTPUT);
     pinMode(PIN_US_FRONT_ECHO, INPUT);
     
-    // Left sensor
-    pinMode(PIN_US_LEFT_TRIG, OUTPUT);
-    pinMode(PIN_US_LEFT_ECHO, INPUT);
-    
     // Right sensor
     pinMode(PIN_US_RIGHT_TRIG, OUTPUT);
     pinMode(PIN_US_RIGHT_ECHO, INPUT);
     
+    // Y-axis sensor (วัดความสูงหัวพ่น)
+    pinMode(PIN_US_Y_TRIG, OUTPUT);
+    pinMode(PIN_US_Y_ECHO, INPUT);
+    
     // Initialize cache
     lastFront = 999;
-    lastLeft = 999;
     lastRight = 999;
+    lastY = 999;
     lastMeasureTime = 0;
     
-    Serial.println("[Ultrasonic] 3 sensors initialized (Front/Left/Right)");
-    Serial.println("   Front: TRIG=" + String(PIN_US_FRONT_TRIG) + ", ECHO=" + String(PIN_US_FRONT_ECHO));
-    Serial.println("   Left:  TRIG=" + String(PIN_US_LEFT_TRIG) + ", ECHO=" + String(PIN_US_LEFT_ECHO));
-    Serial.println("   Right: TRIG=" + String(PIN_US_RIGHT_TRIG) + ", ECHO=" + String(PIN_US_RIGHT_ECHO));
+    Serial.println("[Ultrasonic] 3 sensors initialized (Front/Right/Y-axis)");
+    Serial.println("   Front:  TRIG=" + String(PIN_US_FRONT_TRIG) + ", ECHO=" + String(PIN_US_FRONT_ECHO));
+    Serial.println("   Right:  TRIG=" + String(PIN_US_RIGHT_TRIG) + ", ECHO=" + String(PIN_US_RIGHT_ECHO));
+    Serial.println("   Y-axis: TRIG=" + String(PIN_US_Y_TRIG) + ", ECHO=" + String(PIN_US_Y_ECHO));
 }
 
 float UltrasonicSensors::measureDistance(int trigPin, int echoPin) {
@@ -57,9 +57,9 @@ float UltrasonicSensors::measureDistance(int trigPin, int echoPin) {
 
 float UltrasonicSensors::getDistance(SensorPosition sensor) {
     switch (sensor) {
-        case SENSOR_FRONT: return getFrontDistance();
-        case SENSOR_LEFT:  return getLeftDistance();
-        case SENSOR_RIGHT: return getRightDistance();
+        case SENSOR_FRONT:  return getFrontDistance();
+        case SENSOR_RIGHT:  return getRightDistance();
+        case SENSOR_Y_AXIS: return getYDistance();
         default: return 999;
     }
 }
@@ -69,22 +69,18 @@ float UltrasonicSensors::getFrontDistance() {
     return lastFront;
 }
 
-float UltrasonicSensors::getLeftDistance() {
-    lastLeft = measureDistance(PIN_US_LEFT_TRIG, PIN_US_LEFT_ECHO);
-    return lastLeft;
-}
-
 float UltrasonicSensors::getRightDistance() {
     lastRight = measureDistance(PIN_US_RIGHT_TRIG, PIN_US_RIGHT_ECHO);
     return lastRight;
 }
 
-bool UltrasonicSensors::hasObstacleFront() {
-    return getFrontDistance() < OBSTACLE_THRESHOLD_CM;
+float UltrasonicSensors::getYDistance() {
+    lastY = measureDistance(PIN_US_Y_TRIG, PIN_US_Y_ECHO);
+    return lastY;
 }
 
-bool UltrasonicSensors::hasObstacleLeft() {
-    return getLeftDistance() < OBSTACLE_THRESHOLD_CM;
+bool UltrasonicSensors::hasObstacleFront() {
+    return getFrontDistance() < OBSTACLE_THRESHOLD_CM;
 }
 
 bool UltrasonicSensors::hasObstacleRight() {
@@ -93,26 +89,39 @@ bool UltrasonicSensors::hasObstacleRight() {
 
 ObstacleDirection UltrasonicSensors::checkObstacles() {
     bool front = hasObstacleFront();
-    bool left = hasObstacleLeft();
     bool right = hasObstacleRight();
     
-    // Full logic with all 3 sensors
-    if (front && left && right) return OBSTACLE_ALL;
-    if (front && left) return OBSTACLE_FRONT_LEFT;
+    // 2-sensor logic
     if (front && right) return OBSTACLE_FRONT_RIGHT;
     if (front) return OBSTACLE_FRONT;
-    if (left) return OBSTACLE_LEFT;
     if (right) return OBSTACLE_RIGHT;
     
     return NO_OBSTACLE;
 }
 
+// ==================== Y-AXIS HEIGHT FUNCTIONS ====================
+
+bool UltrasonicSensors::isYTooClose() {
+    return getYDistance() < Y_MIN_HEIGHT_CM;
+}
+
+bool UltrasonicSensors::isYTooFar() {
+    return getYDistance() > Y_MAX_HEIGHT_CM;
+}
+
+bool UltrasonicSensors::isYAtTarget() {
+    float dist = getYDistance();
+    float tolerance = 3.0;  // +/- 3cm
+    return (dist >= Y_TARGET_HEIGHT_CM - tolerance) && 
+           (dist <= Y_TARGET_HEIGHT_CM + tolerance);
+}
+
 void UltrasonicSensors::sendDistancesToSerial() {
-    // Format: DIST:front,left,right
+    // Format: DIST:front,right,y
     Serial.print("DIST:");
     Serial.print(lastFront, 1);
     Serial.print(",");
-    Serial.print(lastLeft, 1);
+    Serial.print(lastRight, 1);
     Serial.print(",");
-    Serial.println(lastRight, 1);
+    Serial.println(lastY, 1);
 }

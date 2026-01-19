@@ -2,11 +2,10 @@
  * obstacle_avoidance.cpp
  * ระบบหลบหลีกสิ่งกีดขวางอัตโนมัติ
  * 
- * Logic:
- * - ถ้าเจอสิ่งกีดขวางด้านหน้า → ถอยหลัง + เลี้ยวหลบ
- * - ถ้าเจอด้านซ้าย → เลี้ยวขวา
+ * Logic (2 sensors: Front + Right):
+ * - ถ้าเจอสิ่งกีดขวางด้านหน้า → ถอยหลัง + เลี้ยวซ้าย
  * - ถ้าเจอด้านขวา → เลี้ยวซ้าย
- * - ถ้าเจอทุกทิศ → หยุด (Emergency Stop)
+ * - ถ้าเจอทั้งสอง → ถอยหลัง + เลี้ยวซ้าย
  */
 
 #include "obstacle_avoidance.h"
@@ -19,6 +18,7 @@ void ObstacleAvoidance::init() {
     thresholdCm = OBSTACLE_THRESHOLD_CM;
     lastCheckTime = 0;
     Serial.println("[Obstacle Avoidance] Initialized (disabled by default)");
+    Serial.println("   Sensors: Front + Right (2 sensors)");
 }
 
 void ObstacleAvoidance::enable() {
@@ -52,7 +52,7 @@ bool ObstacleAvoidance::checkAndAvoid() {
     }
     lastCheckTime = now;
     
-    // Check for obstacles
+    // Check for obstacles (Front + Right only)
     ObstacleDirection obstacle = ultrasonics.checkObstacles();
     
     if (obstacle == NO_OBSTACLE) {
@@ -64,13 +64,8 @@ bool ObstacleAvoidance::checkAndAvoid() {
     
     switch (obstacle) {
         case OBSTACLE_FRONT:
-            Serial.println("FRONT - Backing up and turning");
+            Serial.println("FRONT - Backing up and turning left");
             avoidFront();
-            break;
-            
-        case OBSTACLE_LEFT:
-            Serial.println("LEFT - Turning right");
-            avoidLeft();
             break;
             
         case OBSTACLE_RIGHT:
@@ -78,19 +73,9 @@ bool ObstacleAvoidance::checkAndAvoid() {
             avoidRight();
             break;
             
-        case OBSTACLE_FRONT_LEFT:
-            Serial.println("FRONT+LEFT - Backing up, turning right");
-            avoidFront();
-            break;
-            
         case OBSTACLE_FRONT_RIGHT:
             Serial.println("FRONT+RIGHT - Backing up, turning left");
             avoidFront();
-            break;
-            
-        case OBSTACLE_ALL:
-            Serial.println("ALL SIDES - Emergency stop!");
-            emergencyStop();
             break;
             
         default:
@@ -114,47 +99,27 @@ void ObstacleAvoidance::avoidFront() {
     motorWheel.stop();
     delay(100);
     
-    // ตรวจสอบว่าด้านไหนว่าง แล้วเลี้ยวไปทางนั้น
-    float leftDist = ultrasonics.getLeftDistance();
-    float rightDist = ultrasonics.getRightDistance();
-    
-    if (rightDist > leftDist) {
-        // เลี้ยวขวา (ด้านขวาว่างกว่า)
-        // TODO: เพิ่ม motor turning logic
-        Serial.println("[Avoid] Turning RIGHT");
-    } else {
-        // เลี้ยวซ้าย (ด้านซ้ายว่างกว่า)
-        // TODO: เพิ่ม motor turning logic
-        Serial.println("[Avoid] Turning LEFT");
-    }
+    // เลี้ยวซ้าย (เพราะไม่มี sensor ซ้าย จะถือว่าซ้ายว่างกว่า)
+    Serial.println("[Avoid] Turning LEFT");
+    // TODO: เพิ่ม motor turning logic
     
     delay(AVOID_TURN_DURATION_MS);
     motorWheel.stop();
-}
-
-void ObstacleAvoidance::avoidLeft() {
-    // เลี้ยวขวาเล็กน้อย
-    motorWheel.stop();
-    delay(100);
-    // TODO: เพิ่ม motor turning logic สำหรับเลี้ยวขวา
-    Serial.println("[Avoid] Slight right turn");
-    delay(AVOID_TURN_DURATION_MS / 2);
-    motorWheel.forward();
 }
 
 void ObstacleAvoidance::avoidRight() {
     // เลี้ยวซ้ายเล็กน้อย
     motorWheel.stop();
     delay(100);
-    // TODO: เพิ่ม motor turning logic สำหรับเลี้ยวซ้าย
     Serial.println("[Avoid] Slight left turn");
+    // TODO: เพิ่ม motor turning logic สำหรับเลี้ยวซ้าย
     delay(AVOID_TURN_DURATION_MS / 2);
     motorWheel.forward();
 }
 
 void ObstacleAvoidance::emergencyStop() {
     motorWheel.stop();
-    Serial.println("[Avoid] EMERGENCY STOP - Obstacles on all sides!");
+    Serial.println("[Avoid] EMERGENCY STOP - Obstacles detected!");
     // ส่งสัญญาณไปยัง Pi
     Serial.println("BLOCKED");
 }
