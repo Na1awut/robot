@@ -1,358 +1,164 @@
-# 🚜 AgriBot - ระบบหุ่นยนต์กำจัดวัชพืชอัจฉริยะ
+# AgriBot
 
-**Intelligent Weed Spraying Robot with YOLO11 Detection**
+An intelligent weed spraying robot. A Raspberry Pi detects weeds with YOLO and calculates their position, an ESP32 drives the motors, arm and pump, and a web dashboard provides monitoring and remote control.
 
----
+## System overview
 
-## 📋 สารบัญ
-
-1. [ภาพรวมระบบ](#ภาพรวมระบบ)
-2. [อุปกรณ์ที่ต้องใช้](#อุปกรณ์ที่ต้องใช้)
-3. [ติดตั้ง ESP32](#ติดตั้ง-esp32)
-4. [ติดตั้ง Raspberry Pi](#ติดตั้ง-raspberry-pi)
-5. [ติดตั้ง Web Dashboard](#ติดตั้ง-web-dashboard)
-6. [การ Calibrate](#การ-calibrate)
-7. [การใช้งาน](#การใช้งาน)
-8. [Troubleshooting](#troubleshooting)
-
----
-
-## ภาพรวมระบบ
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AgriBot System                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐    Serial    ┌─────────────┐    WiFi          │
-│  │   ESP32     │◄────────────►│ Raspberry   │◄──────►  📱      │
-│  │  (Control)  │              │  Pi 5       │         Web      │
-│  └──────┬──────┘              │  (Brain)    │         Dashboard│
-│         │                     └──────┬──────┘                   │
-│         │                            │                          │
-│    ┌────┴────┐                  ┌────┴────┐                     │
-│    │ Motors  │                  │ Camera  │                     │
-│    │ Servo   │                  │ YOLO11  │                     │
-│    │ Pump    │                  │ AI      │                     │
-│    │ Sensors │                  └─────────┘                     │
-│    └─────────┘                                                  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```text
+┌──────────┐  USB serial  ┌──────────────┐   Wi-Fi   ┌───────────────┐
+│  ESP32   │◄────────────►│ Raspberry Pi │◄─────────►│ Web dashboard │
+│ (worker) │  115200 baud │   (brain)    │           └───────────────┘
+└────┬─────┘              └──────┬───────┘
+ Motors, servo,               Camera,
+ pump, sensors                YOLO model
 ```
 
-### หน้าที่แต่ละส่วน
+| Component | Responsibility |
+|---|---|
+| **ESP32** | Controls motors, servo and pump, and reads sensors |
+| **Raspberry Pi 5** | Runs detection, calculates positions and commands the ESP32 |
+| **Web dashboard** | Shows status, logs and camera video, and sends commands |
 
-| อุปกรณ์          | หน้าที่                                                               |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| **ESP32**         | ควบคุม Motor, Servo, Pump, อ่าน Sensor                             |
-| **Raspberry Pi**  | ประมวลผล AI (YOLO11), คำนวณตำแหน่ง, สั่งงาน ESP32 |
-| **Web Dashboard** | แสดงผล, ควบคุมระยะไกล, ดู Log                           |
+See [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for the serial protocol.
 
----
+## Hardware
 
-## อุปกรณ์ที่ต้องใช้
+| Item | Qty | Notes |
+|---|---:|---|
+| ESP32 DevKit | 1 | ESP32-WROOM-32 recommended |
+| Raspberry Pi 5 | 1 | 4 GB RAM or more |
+| Camera | 1 | USB or Pi Camera |
+| Wheel DC motors | 2–4 | With an L298N driver |
+| Arm (Z axis) DC motor | 1 | With a motor driver |
+| Nozzle (Y axis) servo | 1 | SG90 or MG996R |
+| Relay module and 12 V pump | 1 each | For spraying |
+| HC-SR04 ultrasonic sensor | 2 | Front and right |
+| Rotary encoder | 1 | Optional, for arm position |
+| Power supply | 1 | 12 V for motors, 5 V for ESP32 and Pi |
 
-### Hardware
+### ESP32 pins
 
-| รายการ        | จำนวน | หมายเหตุ                                  |
-| ------------------- | ---------- | ------------------------------------------------- |
-| ESP32 DevKit        | 1          | แนะนำ ESP32-WROOM-32                         |
-| Raspberry Pi 5      | 1          | 4GB RAM ขึ้นไป                              |
-| Camera              | 1          | USB Camera หรือ Pi Camera                     |
-| DC Motor (ล้อ)   | 2-4        | พร้อม Motor Driver (L298N)                   |
-| DC Motor (แขน Z) | 1          | พร้อม Motor Driver                           |
-| Servo (แกน Y)    | 1          | SG90 หรือ MG996R                              |
-| Relay Module        | 1          | สำหรับ Pump                                 |
-| Pump                | 1          | 12V DC Pump                                       |
-| Ultrasonic Sensor   | 3          | HC-SR04 (หน้า/ซ้าย/ขวา)                |
-| Rotary Encoder      | 1          | (Optional) สำหรับวัดตำแหน่งแขน |
-| Power Supply        | 1          | 12V สำหรับ Motor, 5V สำหรับ ESP32/Pi  |
+| Function | GPIO |
+|---|---|
+| Arm motor | IN1 26, IN2 27, PWM 14 |
+| Left wheel | IN1 32, IN2 33, ENA 25 |
+| Right wheel | IN3 17, IN4 16, ENB 23 |
+| Nozzle servo | 13 |
+| Pump relay | 4 |
+| Front ultrasonic | TRIG 12, ECHO 5 |
+| Right ultrasonic | TRIG 18, ECHO 19 |
+| Encoder (optional) | A 35, B 36 |
+| Start button (hold 3 s) | 15 |
+| Emergency stop | 34 |
+| 16x2 I2C LCD (0x27 or 0x3F) | SDA 21, SCL 22 |
 
-### Pin Connection (ESP32)
+The left ultrasonic sensor is disabled because GPIO 16 is used by the right wheel motor.
 
-```
-ESP32 Pin Configuration (v2.4)
-═══════════════════════════════════════════════════════
+## Setup
 
-Motor Z (แขนยืด/หด):
-  IN1  → GPIO 26
-  IN2  → GPIO 27
-  PWM  → GPIO 14
+### 1. ESP32
 
-Dual Motor / L298N (ล้อซ้าย + ขวา):
-┌───────────────────────────────────────────┐
-│ L298N Driver                              │
-│ =========================================│
-│ ล้อซ้าย (Motor A):                        │
-│   IN1 → GPIO 32                           │
-│   IN2 → GPIO 33                           │
-│   ENA → GPIO 25 (PWM)                     │
-│                                           │
-│ ล้อขวา (Motor B):                         │
-│   IN3 → GPIO 17                           │
-│   IN4 → GPIO 16                           │
-│   ENB → GPIO 23 (PWM)                     │
-└───────────────────────────────────────────┘
+**Arduino IDE:** install the ESP32 board package and the `ESP32Servo` library, open `esp32/AgriBot_ESP32/AgriBot_ESP32.ino`, select **ESP32 Dev Module** and upload.
 
-Servo Y (หัวฉีด):
-  Signal → GPIO 13
-
-Pump Relay:
-  Signal → GPIO 4
-
-Ultrasonic (2 ตัว - Front + Right เท่านั้น):
-  Front: TRIG → GPIO 12, ECHO → GPIO 5
-  Right: TRIG → GPIO 18, ECHO → GPIO 19
-  Left:  ❌ ปิดใช้งาน (GPIO 16 ใช้กับ Motor Right)
-
-Encoder (Optional):
-  Channel A → GPIO 35
-  Channel B → GPIO 36
-
-Buttons:
-  Start (กดค้าง 3s) → GPIO 15
-  Emergency Stop    → GPIO 34
-
-LCD I2C (16x2):
-  SDA → GPIO 21
-  SCL → GPIO 22
-  Address: 0x27 (หรือ 0x3F)
-```
-
----
-
-## ติดตั้ง ESP32
-
-### วิธีที่ 1: Arduino IDE (แนะนำ)
-
-**Step 1: ติดตั้ง Arduino IDE**
-
-- ดาวน์โหลดจาก [arduino.cc](https://www.arduino.cc/en/software)
-
-**Step 2: ติดตั้ง ESP32 Board**
-
-```
-1. File → Preferences
-2. Additional Boards Manager URLs เพิ่ม:
-   https://dl.espressif.com/dl/package_esp32_index.json
-3. Tools → Board → Boards Manager
-4. ค้นหา "ESP32" → Install
-```
-
-**Step 3: ติดตั้ง Library**
-
-```
-Sketch → Include Library → Manage Libraries
-ค้นหา "ESP32Servo" → Install
-```
-
-**Step 4: เปิด Project**
-
-```
-File → Open → เลือก:
-esp32/AgriBot_ESP32/AgriBot_ESP32.ino
-```
-
-**Step 5: ตั้งค่า Board**
-
-```
-Tools → Board → ESP32 Dev Module
-Tools → Port → COM? (เลือก port ที่ ESP32 ต่ออยู่)
-```
-
-**Step 6: Upload**
-
-```
-กด Upload (→) รอจนเสร็จ
-```
-
-### วิธีที่ 2: PlatformIO
+**PlatformIO:**
 
 ```bash
-# เปิดโฟลเดอร์ esp32/ ใน VSCode + PlatformIO
-# กด Upload ที่ Status Bar
+cd esp32
+pio run -t upload
+pio device monitor
 ```
 
-### ทดสอบ ESP32
+Check it in a serial monitor at 115200 baud. `PING` should return `PONG`.
 
-เปิด Serial Monitor (115200 baud):
+### 2. Raspberry Pi
 
-```
-PING      → ตอบ PONG
-STATUS    → ตอบ OK
-```
-
----
-
-## ติดตั้ง Raspberry Pi
-
-### Step 1: ติดตั้ง OS
-
-```bash
-# ใช้ Raspberry Pi Imager
-# เลือก Raspberry Pi OS (64-bit)
-# Flash ลง SD Card
-```
-
-### Step 2: Update System
+Install 64-bit Raspberry Pi OS, then:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-```
-
-### Step 3: ติดตั้ง Python
-
-```bash
 sudo apt install python3-pip python3-venv -y
-
-cd /home/pi
-mkdir agribot && cd agribot
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### Step 4: Copy ไฟล์ Project
-
-```bash
-# จาก PC
-scp -r raspberry_pi/* pi@<PI_IP>:/home/pi/agribot/
-```
-
-### Step 5: ติดตั้ง Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-**requirements.txt:**
-
-```
-pyserial
-opencv-python-headless
-numpy
-ultralytics
-```
-
-### Step 6: ติดตั้ง YOLO Model
-
-```bash
-mkdir -p models
-# Copy best.pt มาวางใน models/
-```
-
-### Step 7: ตั้งค่า Serial Permission
-
-```bash
-sudo usermod -a -G dialout pi
+sudo usermod -a -G dialout $USER
 sudo reboot
 ```
 
-### Step 8: ทดสอบ
+After rebooting, from the repository root:
 
 ```bash
-python calibration_simple.py  # ทดสอบ Calibration
-python main.py                # รันระบบหลัก
-
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r raspberry_pi/requirements.txt
 ```
 
----
-
-## ติดตั้ง Web Dashboard
-
-### บน Raspberry Pi
+The trained model is not included in this repository. Put your `best.pt` file in `raspberry_pi/models/`.
 
 ```bash
-# ติดตั้ง Node.js
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install nodejs -y
+cd raspberry_pi
+python calibration_simple.py
+python main.py
+```
 
-# Build Frontend
+### 3. Web dashboard
+
+Production on the Pi, using the same virtual environment:
+
+```bash
 cd PI_WEBAPP/frontend
 npm install && npm run build
-
-# Run Backend
 cd ../backend
 pip install -r requirements.txt
-# กด Ctrl+C หยุด server เก่า
-# แล้วรันใหม่
-/home/nww/Downloads/pro/project-robot/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-**เข้าใช้งาน:** `http://<PI_IP>:8000`
+Open `http://<PI_IP>:8000`.
 
-### บน PC (Development)
+For development, run the backend as above and start the frontend with `npm run dev`, then open <http://localhost:5173>.
 
-```bash
-# Backend
-cd PI_WEBAPP/backend
-/home/nww/Downloads/pro/project-robot/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 
+### Start on boot
 
-# Frontend
-cd PI_WEBAPP/frontend
-npm install && npm run dev
-```
+[`start_agribot.sh`](start_agribot.sh) and [`agribot.service`](agribot.service) start the dashboard with systemd. Both contain absolute paths from the original machine, so update those paths first.
 
-**เข้าใช้งาน:** `http://localhost:5173`
-
----
-
-## การ Calibrate
+## Calibration
 
 ```bash
 cd raspberry_pi
 python calibration_simple.py
 ```
 
-1. เลือก "1. Full Calibration"
-2. กรอกค่า pixel_to_cm (วางไม้บรรทัดหน้ากล้อง วัด pixel)
-3. กรอก arm_offset (ระยะกล้อง → แขน)
-4. บันทึก
+Choose **Full Calibration**, enter `pixel_to_cm` (measure with a ruler in front of the camera), enter `arm_offset` (camera to arm distance), then save. See the [calibration guide](raspberry_pi/CALIBRATION_GUIDE.md) for details.
 
-**ดูคู่มือละเอียด:** `CALIBRATION_GUIDE.md`
+## ESP32 commands
 
----
-
-## การใช้งาน
-
-### คำสั่ง ESP32
-
-| คำสั่ง      | ผลลัพธ์                          |
-| ----------------- | --------------------------------------- |
-| `MOVE_FORWARD`  | รถเดินหน้า                    |
-| `MOVE_STOP`     | รถหยุด                            |
-| `ACT:Z_OUT:2.5` | แขนยืด 2.5 วินาที           |
-| `ACT:Z_IN:2.5`  | แขนหด                              |
-| `ACT:Y_DOWN`    | หัวฉีดลง                        |
-| `ACT:Y_UP`      | หัวฉีดขึ้น                    |
-| `ACT:SPRAY:1.0` | พ่นยา 1 วินาที               |
-| `STOP_ALL`      | หยุดทุกระบบ                  |
-| `US_GET_DIST`   | อ่านระยะ Ultrasonic             |
-| `Z_MOVE:15.0`   | แขนไปตำแหน่ง 15cm (Encoder) |
-
----
+| Command | Action |
+|---|---|
+| `MOVE_FORWARD` | Drive forward |
+| `MOVE_STOP` | Stop driving |
+| `ACT:Z_OUT:2.5` | Extend the arm for 2.5 seconds |
+| `ACT:Z_IN:2.5` | Retract the arm for 2.5 seconds |
+| `ACT:Y_DOWN` / `ACT:Y_UP` | Lower or raise the nozzle |
+| `ACT:SPRAY:1.0` | Spray for 1 second |
+| `Z_MOVE:15.0` | Move the arm to 15 cm (encoder required) |
+| `US_GET_DIST` | Read ultrasonic distance |
+| `STOP_ALL` | Stop every system |
 
 ## Troubleshooting
 
-| ปัญหา              | วิธีแก้                     |
-| ----------------------- | ---------------------------------- |
-| ESP32 ไม่ตอบ      | ตรวจสอบ Port, กด Reset    |
-| YOLO ไม่โหลด     | ตรวจสอบไฟล์ใน models/ |
-| Camera ไม่ทำงาน | `ls /dev/video*`                 |
-| Permission denied       | `sudo usermod -a -G dialout pi`  |
+| Problem | Try |
+|---|---|
+| ESP32 does not respond | Check the port and press reset |
+| YOLO does not load | Check for the model in `raspberry_pi/models/` |
+| Camera does not work | Run `ls /dev/video*` |
+| Serial permission denied | Run `sudo usermod -a -G dialout $USER`, then log in again |
 
----
+## Safety
 
-## 📁 โครงสร้างโปรเจค
+Test with water and the wheels off the ground before field use. Follow the label and local rules for any chemical, and make sure the emergency stop is working.
 
+## Project structure
+
+```text
+esp32/          ESP32 firmware
+raspberry_pi/   Detection, tracking, robot logic and calibration
+PI_WEBAPP/      FastAPI backend and React dashboard
+docs/           Serial protocol
+logic/          Logic notes
 ```
-project-robot/
-├── esp32/AgriBot_ESP32/     ← ESP32 Code
-├── raspberry_pi/            ← Pi Code + AI
-│   ├── models/best.pt       ← YOLO Model
-│   └── calibration.json     ← Calibration
-└── PI_WEBAPP/               ← Web Dashboard
-```
-
----
-
-**Version:** 2.2.0 | **อัพเดท:** 2026-01-13
